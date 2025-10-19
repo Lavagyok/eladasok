@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, ShoppingCart, Search, Calendar, Edit, Trash2, X, Package, Wrench, FileText } from 'lucide-react';
+import { Plus, ShoppingCart, Search, Calendar, Edit, Trash2, X, Package, Wrench, FileText, Download } from 'lucide-react';
 import { Product, Sale, Service, SaleItem } from '../types';
 import { calculations } from '../utils/calculations';
 import { formatNumberInput, parseFormattedNumber, formatCurrency } from '../utils/formatters';
+import { generateInvoice } from '../utils/reports';
 
 interface SalesProps {
   products: Product[];
@@ -333,11 +334,20 @@ const Sales: React.FC<SalesProps> = ({
           }
         }
       });
-      
+
       if (onDeleteSale) {
         onDeleteSale(sale.id);
       }
     }
+  };
+
+  const handleGenerateInvoice = (sale: Sale) => {
+    const businessInfo = {
+      name: 'Vállalkozás Neve',
+      address: 'Cím, Város, Irányítószám',
+      taxNumber: '12345678-1-23'
+    };
+    generateInvoice(sale, businessInfo);
   };
 
   const totalRevenue = calculations.getTotalRevenue(filteredAndSortedSales());
@@ -740,6 +750,13 @@ const Sales: React.FC<SalesProps> = ({
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex gap-1">
+                      <button
+                        onClick={() => handleGenerateInvoice(sale)}
+                        className="p-1 text-green-400 hover:text-green-300 hover:bg-green-900/20 rounded transition-colors"
+                        title="Számla generálása"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handleEdit(sale)}
                         className="p-1 text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-colors"

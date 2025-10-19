@@ -1,6 +1,18 @@
-// Report generation utilities
-import { Product, Sale, Purchase, Expense } from '../types';
-import { calculations } from './calculations';
+import { Product, Sale, Expense } from '../types';
+import { formatCurrency } from './formatters';
+
+export interface PDFReportData {
+  reportType: string;
+  dateFrom: string;
+  dateTo: string;
+  profitAnalysis: any;
+  salesStats: any;
+  inventoryMetrics: any;
+  expenseStats: any;
+  products: Product[];
+  sales: Sale[];
+  expenses: Expense[];
+}
 
 export interface ReportData {
   period: string;
@@ -136,4 +148,96 @@ export const reports = {
 
     return report;
   }
+};
+
+export const generatePDFReport = (data: PDFReportData) => {
+  const { reportType, dateFrom, dateTo, profitAnalysis, salesStats, inventoryMetrics } = data;
+
+  let content = `ÜZLETI RIPORT\n`;
+  content += `Riport típus: ${reportType === 'overview' ? 'Áttekintés' : reportType === 'sales' ? 'Eladások' : reportType === 'inventory' ? 'Készlet' : 'Profit/Veszteség'}\n`;
+  content += `Időszak: ${dateFrom || 'Kezdet'} - ${dateTo || 'Most'}\n`;
+  content += `Generálva: ${new Date().toLocaleString('hu-HU')}\n\n`;
+  content += `${'='.repeat(60)}\n\n`;
+
+  if (reportType === 'overview' || reportType === 'profit') {
+    content += `PÉNZÜGYI ÖSSZEFOGLALÓ\n`;
+    content += `${'-'.repeat(60)}\n`;
+    content += `Teljes bevétel: ${formatCurrency(salesStats.totalRevenue)}\n`;
+    content += `Nettó profit: ${formatCurrency(profitAnalysis.netProfit)}\n`;
+    content += `Profit margin: ${profitAnalysis.profitMargin.toFixed(1)}%\n`;
+    content += `Összes kiadás: ${formatCurrency(profitAnalysis.operatingExpenses)}\n\n`;
+  }
+
+  if (reportType === 'sales' || reportType === 'overview') {
+    content += `ELADÁSI STATISZTIKÁK\n`;
+    content += `${'-'.repeat(60)}\n`;
+    content += `Eladások száma: ${salesStats.totalSales}\n`;
+    content += `Átlagos eladási érték: ${formatCurrency(salesStats.averageSaleValue)}\n\n`;
+
+    if (salesStats.topSellingProducts.length > 0) {
+      content += `TOP ELADOTT TERMÉKEK:\n`;
+      salesStats.topSellingProducts.forEach((product: any, index: number) => {
+        content += `${index + 1}. ${product.productName} - ${product.quantity} db - ${formatCurrency(product.revenue)}\n`;
+      });
+      content += `\n`;
+    }
+  }
+
+  if (reportType === 'inventory' || reportType === 'overview') {
+    content += `KÉSZLET INFORMÁCIÓK\n`;
+    content += `${'-'.repeat(60)}\n`;
+    content += `Készlet értéke: ${formatCurrency(inventoryMetrics.totalValue)}\n`;
+    content += `Alacsony készletű termékek: ${inventoryMetrics.lowStockCount}\n`;
+    content += `Készleten nincs: ${inventoryMetrics.outOfStockCount}\n\n`;
+  }
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `riport_${new Date().toISOString().split('T')[0]}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+export const generateInvoice = (sale: Sale, businessInfo: { name: string; address: string; taxNumber: string }) => {
+  let invoice = `SZÁMLA\n`;
+  invoice += `${'='.repeat(60)}\n\n`;
+
+  invoice += `Szolgáltató adatai:\n`;
+  invoice += `Név: ${businessInfo.name}\n`;
+  invoice += `Cím: ${businessInfo.address}\n`;
+  invoice += `Adószám: ${businessInfo.taxNumber}\n\n`;
+
+  invoice += `Számla adatai:\n`;
+  invoice += `Számla száma: ${sale.id}\n`;
+  invoice += `Dátum: ${new Date(sale.date).toLocaleString('hu-HU')}\n`;
+  if (sale.customerName) {
+    invoice += `Vevő: ${sale.customerName}\n`;
+  }
+  invoice += `\n${'-'.repeat(60)}\n\n`;
+
+  invoice += `TÉTELEK:\n`;
+  sale.items?.forEach((item, index) => {
+    invoice += `${index + 1}. ${item.name}\n`;
+    invoice += `   Mennyiség: ${item.quantity} ${item.unit}\n`;
+    invoice += `   Egységár: ${formatCurrency(item.unitPrice)}\n`;
+    invoice += `   Összesen: ${formatCurrency(item.totalPrice)}\n\n`;
+  });
+
+  invoice += `${'-'.repeat(60)}\n`;
+  invoice += `VÉGÖSSZEG: ${formatCurrency(sale.totalAmount)}\n`;
+  invoice += `${'='.repeat(60)}\n`;
+
+  const blob = new Blob([invoice], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `szamla_${sale.id}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };

@@ -1,24 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
-  Package, 
-  ShoppingCart, 
-  CreditCard, 
+import {
+  BarChart3,
+  Package,
+  ShoppingCart,
+  CreditCard,
   Search,
   Settings,
   Download,
   Upload,
-  Trash2
+  Trash2,
+  FileText,
+  Bell
 } from 'lucide-react';
 import { Product, Sale, Purchase, Expense, Service } from './types';
 import { storage } from './utils/storage';
+import { calculations } from './utils/calculations';
 import Dashboard from './components/Dashboard';
 import Products from './components/Products';
 import Sales from './components/Sales';
 import Expenses from './components/Expenses';
 import SearchComponent from './components/Search';
+import Reports from './components/Reports';
+import StockAlerts from './components/StockAlerts';
 
-type ActiveTab = 'dashboard' | 'products' | 'sales' | 'expenses' | 'search';
+type ActiveTab = 'dashboard' | 'products' | 'sales' | 'expenses' | 'search' | 'reports';
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -27,6 +32,7 @@ function App() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [showStockAlerts, setShowStockAlerts] = useState(true);
 
   useEffect(() => {
     setProducts(storage.getProducts());
@@ -200,11 +206,16 @@ function App() {
     }
   };
 
+  const lowStockCount = calculations.getLowStockProducts(products).length;
+  const outOfStockCount = products.filter(p => p.currentStock === 0).length;
+  const totalAlerts = lowStockCount + outOfStockCount;
+
   const navItems = [
     { id: 'dashboard', label: 'Irányítópult', icon: BarChart3 },
     { id: 'products', label: 'Termékek', icon: Package },
     { id: 'sales', label: 'Eladások', icon: ShoppingCart },
     { id: 'expenses', label: 'Kiadások', icon: CreditCard },
+    { id: 'reports', label: 'Riportok', icon: FileText },
     { id: 'search', label: 'Keresés', icon: Search }
   ];
 
@@ -222,15 +233,34 @@ function App() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as ActiveTab)}
-                className={`w-full flex items-center px-6 py-3 text-left hover:bg-gray-700 transition-colors ${
+                className={`w-full flex items-center justify-between px-6 py-3 text-left hover:bg-gray-700 transition-colors ${
                   activeTab === item.id ? 'bg-blue-900 text-blue-400 border-r-2 border-blue-400' : 'text-gray-300'
                 }`}
               >
-                <item.icon className="w-5 h-5 mr-3" />
-                {item.label}
+                <div className="flex items-center">
+                  <item.icon className="w-5 h-5 mr-3" />
+                  {item.label}
+                </div>
+                {item.id === 'products' && totalAlerts > 0 && (
+                  <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {totalAlerts}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
+
+          {totalAlerts > 0 && (
+            <div className="mt-4 mx-4 p-3 bg-orange-900/20 border border-orange-600/50 rounded-lg">
+              <div className="flex items-center gap-2 text-orange-400">
+                <Bell className="w-4 h-4" />
+                <div className="text-sm">
+                  <p className="font-medium">{totalAlerts} készlet figyelmeztetés</p>
+                  <p className="text-xs text-gray-400">Kattints a Termékek fülre</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-8 p-6 border-t border-gray-700">
             <h3 className="text-sm font-medium text-white mb-4 flex items-center">
@@ -276,12 +306,22 @@ function App() {
             />
           )}
           {activeTab === 'products' && (
-            <Products
-              products={products}
-              onAddProduct={handleAddProduct}
-              onUpdateProduct={handleUpdateProduct}
-              onDeleteProduct={handleDeleteProduct}
-            />
+            <div>
+              <Products
+                products={products}
+                onAddProduct={handleAddProduct}
+                onUpdateProduct={handleUpdateProduct}
+                onDeleteProduct={handleDeleteProduct}
+              />
+              {showStockAlerts && totalAlerts > 0 && (
+                <div className="p-6">
+                  <StockAlerts
+                    products={products}
+                    onDismiss={() => setShowStockAlerts(false)}
+                  />
+                </div>
+              )}
+            </div>
           )}
           {activeTab === 'sales' && (
             <Sales
@@ -300,6 +340,14 @@ function App() {
               onAddExpense={handleAddExpense}
              onUpdateExpense={handleUpdateExpense}
              onDeleteExpense={handleDeleteExpense}
+            />
+          )}
+          {activeTab === 'reports' && (
+            <Reports
+              products={products}
+              sales={sales}
+              purchases={purchases}
+              expenses={expenses}
             />
           )}
           {activeTab === 'search' && (
