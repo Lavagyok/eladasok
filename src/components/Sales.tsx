@@ -219,7 +219,7 @@ const Sales: React.FC<SalesProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (saleItems.length === 0) {
       alert('Adj hozzá legalább egy tételt az eladáshoz!');
       return;
@@ -237,29 +237,53 @@ const Sales: React.FC<SalesProps> = ({
 
     if (editingSale && onUpdateSale) {
       // Restore stock for old items if editing
+      const stockAdjustments = new Map<string, number>();
+
       editingSale.items?.forEach(oldItem => {
         if (oldItem.type === 'product' && oldItem.productId) {
-          const product = products.find(p => p.id === oldItem.productId);
-          if (product) {
-            onUpdateProductStock(oldItem.productId, product.currentStock + oldItem.quantity);
-          }
+          const current = stockAdjustments.get(oldItem.productId) || 0;
+          stockAdjustments.set(oldItem.productId, current + oldItem.quantity);
         }
       });
-      
+
+      // Apply new items adjustments
+      saleItems.forEach(item => {
+        if (item.type === 'product' && item.productId) {
+          const current = stockAdjustments.get(item.productId) || 0;
+          stockAdjustments.set(item.productId, current - item.quantity);
+        }
+      });
+
+      // Apply all stock adjustments
+      stockAdjustments.forEach((adjustment, productId) => {
+        const product = products.find(p => p.id === productId);
+        if (product) {
+          onUpdateProductStock(productId, product.currentStock + adjustment);
+        }
+      });
+
       onUpdateSale(editingSale.id, sale);
     } else {
+      // Create stock adjustments map to handle multiple items of the same product
+      const stockAdjustments = new Map<string, number>();
+
+      saleItems.forEach(item => {
+        if (item.type === 'product' && item.productId) {
+          const current = stockAdjustments.get(item.productId) || 0;
+          stockAdjustments.set(item.productId, current + item.quantity);
+        }
+      });
+
+      // Apply all stock adjustments at once
+      stockAdjustments.forEach((totalQuantity, productId) => {
+        const product = products.find(p => p.id === productId);
+        if (product) {
+          onUpdateProductStock(productId, product.currentStock - totalQuantity);
+        }
+      });
+
       onAddSale(sale);
     }
-
-    // Update product stock for new items
-    saleItems.forEach(item => {
-      if (item.type === 'product' && item.productId) {
-        const product = products.find(p => p.id === item.productId);
-        if (product) {
-          onUpdateProductStock(item.productId, product.currentStock - item.quantity);
-        }
-      }
-    });
 
     resetForm();
   };
