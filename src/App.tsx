@@ -52,6 +52,7 @@ function App() {
         { id: crypto.randomUUID(), name: 'Helyben vásárolt alkatrész beépítése, installálása', price: 3990, unit: 'db', category: 'Szerelés', description: 'Alkatrész beépítési szolgáltatás' },
         { id: crypto.randomUUID(), name: 'Hibafeltárási/Bevizsgálási díj', price: 4990, unit: 'db', category: 'Diagnosztika', description: 'Hibakeresés és diagnosztika' },
         { id: crypto.randomUUID(), name: 'Szakvélemény kiállítása', price: 6990, unit: 'db', category: 'Dokumentáció', description: 'Szakmai vélemény készítése' },
+        { id: crypto.randomUUID(), name: 'Nyomtatás', price: 100, unit: 'oldal', category: 'Nyomtatás', description: 'Általános nyomtatás' },
         { id: crypto.randomUUID(), name: 'Nyomtatás (fekete-fehér A4)', price: 200, unit: 'oldal', category: 'Nyomtatás', description: 'Fekete-fehér nyomtatás' },
         { id: crypto.randomUUID(), name: 'Nyomtatás (színes csak szöveg A4)', price: 400, unit: 'oldal', category: 'Nyomtatás', description: 'Színes szöveges nyomtatás' },
         { id: crypto.randomUUID(), name: 'Nyomtatás (színes kép)', price: 800, unit: 'oldal', category: 'Nyomtatás', description: 'Színes képnyomtatás' },
@@ -206,8 +207,9 @@ function App() {
     }
   };
 
-  const lowStockCount = calculations.getLowStockProducts(products).length;
+  const lowStockProducts = calculations.getLowStockProducts(products);
   const outOfStockCount = products.filter(p => p.currentStock === 0).length;
+  const lowStockCount = lowStockProducts.filter(p => p.currentStock > 0).length;
   const totalAlerts = lowStockCount + outOfStockCount;
 
   const navItems = [

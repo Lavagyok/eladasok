@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, ShoppingCart, Search, Calendar, Edit, Trash2, X, Package, Wrench, FileText, Download } from 'lucide-react';
+import { Plus, ShoppingCart, Calendar, Edit, Trash2, X, Package, Wrench, FileText, Download } from 'lucide-react';
 import { Product, Sale, Service, SaleItem } from '../types';
 import { calculations } from '../utils/calculations';
 import { formatNumberInput, parseFormattedNumber, formatCurrency } from '../utils/formatters';
 import { generateInvoice } from '../utils/reports';
+import SearchBar from './SearchBar';
 
 interface SalesProps {
   products: Product[];
@@ -390,16 +391,14 @@ const Sales: React.FC<SalesProps> = ({
       <div className="bg-gray-800 rounded-lg shadow-md p-6">
         <div className="mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <Search className="w-5 h-5 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Keresés eladásokban..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white placeholder-gray-400"
-              />
-            </div>
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Keresés vásárló vagy termék szerint..."
+              showResultCount={true}
+              resultCount={filteredAndSortedSales().length}
+              totalCount={sales.length}
+            />
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-gray-500" />
               <input

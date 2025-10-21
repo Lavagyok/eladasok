@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, CreditCard, Search, Calendar, Edit, Trash2 } from 'lucide-react';
+import { Plus, CreditCard, Calendar, Edit, Trash2 } from 'lucide-react';
 import { Expense } from '../types';
 import { calculations } from '../utils/calculations';
 import { formatNumberInput, parseFormattedNumber, formatCurrency } from '../utils/formatters';
+import SearchBar from './SearchBar';
 
 interface ExpensesProps {
   expenses: Expense[];
@@ -188,16 +189,14 @@ const Expenses: React.FC<ExpensesProps> = ({
       <div className="bg-gray-800 rounded-lg shadow-md p-6">
         <div className="mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <Search className="w-5 h-5 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Keresés kiadásokban..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-white placeholder-gray-400"
-              />
-            </div>
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Keresés kiadásokban kategória, leírás szerint..."
+              showResultCount={true}
+              resultCount={filteredAndSortedExpenses().length}
+              totalCount={expenses.length}
+            />
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-gray-500" />
               <input

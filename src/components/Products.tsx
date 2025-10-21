@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Package, Search, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, AlertTriangle } from 'lucide-react';
 import { Product } from '../types';
 import { calculations } from '../utils/calculations';
 import { formatNumberInput, parseFormattedNumber, formatCurrency } from '../utils/formatters';
+import SearchBar from './SearchBar';
 
 interface ProductsProps {
   products: Product[];
@@ -185,16 +186,14 @@ const Products: React.FC<ProductsProps> = ({
       <div className="bg-gray-800 rounded-lg shadow-md p-6">
         <div className="mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <Search className="w-5 h-5 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Keresés termékekben..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
-              />
-            </div>
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Keresés termékekben név, kategória szerint..."
+              showResultCount={true}
+              resultCount={filteredAndSortedProducts().length}
+              totalCount={products.length}
+            />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
@@ -216,7 +215,7 @@ const Products: React.FC<ProductsProps> = ({
             </select>
             <div className="bg-blue-900/20 p-3 rounded-lg text-center">
               <p className="text-sm text-gray-400">Összes termék</p>
-              <p className="text-lg font-bold text-blue-600">{filteredAndSortedProducts().length}</p>
+              <p className="text-lg font-bold text-blue-600">{products.length}</p>
             </div>
           </div>
         </div>
