@@ -273,15 +273,22 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, products, services, onAddTic
     setItems(prev => prev.filter(i => i.id !== id));
   };
 
-  const filteredPickerItems = (() => {
+  const filteredProducts = (() => {
     const q = itemSearch.toLowerCase();
-    const prods = products
-      .filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
-      .map(p => ({ kind: 'product' as const, id: p.id, label: p.name, sub: p.category, price: p.sellingPrice, unit: p.unit, data: p }));
-    const svcs = services
-      .filter(s => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q))
-      .map(s => ({ kind: 'service' as const, id: s.id, label: s.name, sub: s.category, price: s.price, unit: s.unit, data: s }));
-    return [...prods, ...svcs];
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q) ||
+      (p.description ?? '').toLowerCase().includes(q)
+    );
+  })();
+
+  const filteredServices = (() => {
+    const q = itemSearch.toLowerCase();
+    return services.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.category.toLowerCase().includes(q) ||
+      (s.description ?? '').toLowerCase().includes(q)
+    );
   })();
 
   return (
@@ -493,36 +500,74 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, products, services, onAddTic
                       <input
                         type="text"
                         autoFocus
-                        placeholder="Keresés a készletben és szolgáltatások között..."
+                        placeholder="Keresés neve, kategória alapján..."
                         value={itemSearch}
                         onChange={e => setItemSearch(e.target.value)}
                         className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500"
                       />
                     </div>
-                    <div className="max-h-48 overflow-y-auto">
-                      {filteredPickerItems.length === 0 && (
+                    <div className="max-h-72 overflow-y-auto">
+                      {filteredProducts.length === 0 && filteredServices.length === 0 && (
                         <p className="text-center text-gray-500 text-sm py-4">Nincs találat</p>
                       )}
-                      {filteredPickerItems.map(entry => (
-                        <button
-                          type="button"
-                          key={entry.id}
-                          onClick={() => entry.kind === 'product' ? addProductItem(entry.data as Product) : addServiceItem(entry.data as Service)}
-                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-600 text-left transition-colors"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {entry.kind === 'product'
-                              ? <Package className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                              : <Wrench className="w-3.5 h-3.5 text-green-400 shrink-0" />
-                            }
-                            <div className="min-w-0">
-                              <p className="text-sm text-white truncate">{entry.label}</p>
-                              <p className="text-xs text-gray-400">{entry.sub}</p>
-                            </div>
+
+                      {/* Products section */}
+                      {filteredProducts.length > 0 && (
+                        <>
+                          <div className="px-3 py-1.5 bg-gray-800/60 border-b border-gray-600/50">
+                            <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <Package className="w-3 h-3" />
+                              Készlet ({filteredProducts.length})
+                            </span>
                           </div>
-                          <span className="text-sm text-gray-300 shrink-0 ml-3">{formatCurrency(entry.price)}</span>
-                        </button>
-                      ))}
+                          {filteredProducts.map(p => (
+                            <button
+                              type="button"
+                              key={p.id}
+                              onClick={() => addProductItem(p)}
+                              className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-600 text-left transition-colors border-b border-gray-600/30 last:border-0"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Package className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-sm text-white truncate">{p.name}</p>
+                                  <p className="text-xs text-gray-400">{p.category} · készlet: <span className={p.currentStock > 0 ? 'text-green-400' : 'text-red-400'}>{p.currentStock} {p.unit}</span></p>
+                                </div>
+                              </div>
+                              <span className="text-sm text-gray-300 shrink-0 ml-3">{formatCurrency(p.sellingPrice)}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {/* Services section */}
+                      {filteredServices.length > 0 && (
+                        <>
+                          <div className="px-3 py-1.5 bg-gray-800/60 border-b border-gray-600/50">
+                            <span className="text-xs font-semibold text-green-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <Wrench className="w-3 h-3" />
+                              Szolgáltatások ({filteredServices.length})
+                            </span>
+                          </div>
+                          {filteredServices.map(s => (
+                            <button
+                              type="button"
+                              key={s.id}
+                              onClick={() => addServiceItem(s)}
+                              className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-600 text-left transition-colors border-b border-gray-600/30 last:border-0"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Wrench className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-sm text-white truncate">{s.name}</p>
+                                  <p className="text-xs text-gray-400">{s.category}</p>
+                                </div>
+                              </div>
+                              <span className="text-sm text-gray-300 shrink-0 ml-3">{formatCurrency(s.price)} / {s.unit}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
