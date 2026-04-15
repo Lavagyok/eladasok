@@ -10,9 +10,10 @@ import {
   Upload,
   Trash2,
   FileText,
-  Bell
+  Bell,
+  Wrench
 } from 'lucide-react';
-import { Product, Sale, Purchase, Expense, Service } from './types';
+import { Product, Sale, Purchase, Expense, Service, Ticket } from './types';
 import { storage } from './utils/storage';
 import { calculations } from './utils/calculations';
 import Dashboard from './components/Dashboard';
@@ -22,8 +23,9 @@ import Expenses from './components/Expenses';
 import SearchComponent from './components/Search';
 import Reports from './components/Reports';
 import StockAlerts from './components/StockAlerts';
+import Tickets from './components/Tickets';
 
-type ActiveTab = 'dashboard' | 'products' | 'sales' | 'expenses' | 'search' | 'reports';
+type ActiveTab = 'dashboard' | 'products' | 'sales' | 'expenses' | 'search' | 'reports' | 'tickets';
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -32,6 +34,7 @@ function App() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [showStockAlerts, setShowStockAlerts] = useState(true);
 
   useEffect(() => {
@@ -40,9 +43,9 @@ function App() {
     setSales(storage.getSales());
     setPurchases(storage.getPurchases());
     setExpenses(storage.getExpenses());
+    setTickets(storage.getTickets());
   }, []);
 
-  // Initialize default services if none exist
   useEffect(() => {
     if (services.length === 0) {
       const defaultServices: Service[] = [
@@ -149,6 +152,30 @@ function App() {
     storage.saveSales(updatedSales);
   };
 
+  const handleAddTicket = (ticketData: Omit<Ticket, 'id'>) => {
+    const newTicket: Ticket = {
+      ...ticketData,
+      id: crypto.randomUUID()
+    };
+    const updatedTickets = [...tickets, newTicket];
+    setTickets(updatedTickets);
+    storage.saveTickets(updatedTickets);
+  };
+
+  const handleUpdateTicket = (id: string, updates: Partial<Ticket>) => {
+    const updatedTickets = tickets.map(ticket =>
+      ticket.id === id ? { ...ticket, ...updates, updatedAt: new Date() } : ticket
+    );
+    setTickets(updatedTickets);
+    storage.saveTickets(updatedTickets);
+  };
+
+  const handleDeleteTicket = (id: string) => {
+    const updatedTickets = tickets.filter(ticket => ticket.id !== id);
+    setTickets(updatedTickets);
+    storage.saveTickets(updatedTickets);
+  };
+
   const handleExportData = () => {
     const data = {
       products,
@@ -156,6 +183,7 @@ function App() {
       sales,
       purchases,
       expenses,
+      tickets,
       exportDate: new Date().toISOString()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -180,13 +208,15 @@ function App() {
         if (data.sales) setSales(data.sales);
         if (data.purchases) setPurchases(data.purchases);
         if (data.expenses) setExpenses(data.expenses);
-        
+        if (data.tickets) setTickets(data.tickets);
+
         storage.saveProducts(data.products || []);
         storage.saveServices(data.services || []);
         storage.saveSales(data.sales || []);
         storage.savePurchases(data.purchases || []);
         storage.saveExpenses(data.expenses || []);
-        
+        storage.saveTickets(data.tickets || []);
+
         alert('Adatok sikeresen importálva!');
       } catch (error) {
         alert('Hiba az adatok importálása során!');
@@ -202,6 +232,7 @@ function App() {
       setSales([]);
       setPurchases([]);
       setExpenses([]);
+      setTickets([]);
       storage.clearAll();
       alert('Minden adat törölve!');
     }
@@ -211,9 +242,11 @@ function App() {
   const outOfStockCount = products.filter(p => p.currentStock === 0).length;
   const lowStockCount = lowStockProducts.filter(p => p.currentStock > 0).length;
   const totalAlerts = lowStockCount + outOfStockCount;
+  const openTicketsCount = tickets.filter(t => t.status !== 'lezárva' && t.status !== 'visszautasítva').length;
 
   const navItems = [
     { id: 'dashboard', label: 'Irányítópult', icon: BarChart3 },
+    { id: 'tickets', label: 'Jegyek', icon: Wrench },
     { id: 'products', label: 'Termékek', icon: Package },
     { id: 'sales', label: 'Eladások', icon: ShoppingCart },
     { id: 'expenses', label: 'Kiadások', icon: CreditCard },
@@ -229,7 +262,7 @@ function App() {
             <h1 className="text-xl font-bold text-white">Készlet Kezelő</h1>
             <p className="text-sm text-gray-400">Helyi adattárolás</p>
           </div>
-          
+
           <nav className="mt-6">
             {navItems.map((item) => (
               <button
@@ -246,6 +279,11 @@ function App() {
                 {item.id === 'products' && totalAlerts > 0 && (
                   <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full">
                     {totalAlerts}
+                  </span>
+                )}
+                {item.id === 'tickets' && openTicketsCount > 0 && (
+                  <span className="bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {openTicketsCount}
                   </span>
                 )}
               </button>
@@ -307,6 +345,14 @@ function App() {
               expenses={expenses}
             />
           )}
+          {activeTab === 'tickets' && (
+            <Tickets
+              tickets={tickets}
+              onAddTicket={handleAddTicket}
+              onUpdateTicket={handleUpdateTicket}
+              onDeleteTicket={handleDeleteTicket}
+            />
+          )}
           {activeTab === 'products' && (
             <div>
               <Products
@@ -340,8 +386,8 @@ function App() {
             <Expenses
               expenses={expenses}
               onAddExpense={handleAddExpense}
-             onUpdateExpense={handleUpdateExpense}
-             onDeleteExpense={handleDeleteExpense}
+              onUpdateExpense={handleUpdateExpense}
+              onDeleteExpense={handleDeleteExpense}
             />
           )}
           {activeTab === 'reports' && (
@@ -359,11 +405,11 @@ function App() {
               sales={sales}
               purchases={purchases}
               expenses={expenses}
-             onUpdateProduct={handleUpdateProduct}
-             onDeleteProduct={handleDeleteProduct}
-             onDeleteSale={handleDeleteSale}
-             onUpdateExpense={handleUpdateExpense}
-             onDeleteExpense={handleDeleteExpense}
+              onUpdateProduct={handleUpdateProduct}
+              onDeleteProduct={handleDeleteProduct}
+              onDeleteSale={handleDeleteSale}
+              onUpdateExpense={handleUpdateExpense}
+              onDeleteExpense={handleDeleteExpense}
             />
           )}
         </div>
