@@ -1,4 +1,4 @@
-import { Product, Sale, Purchase, Expense, Service } from '../types';
+import { Product, Sale, Purchase, Expense, Service, Ticket } from '../types';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'inventory_products',
@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   SALES: 'inventory_sales',
   PURCHASES: 'inventory_purchases',
   EXPENSES: 'inventory_expenses',
+  TICKETS: 'repair_tickets',
 };
 
 export const storage = {
@@ -99,6 +100,20 @@ export const storage = {
 
   saveExpenses: (expenses: Expense[]): void => {
     localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
+  },
+
+  // Tickets
+  getTickets: (): Ticket[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.TICKETS);
+    return data ? JSON.parse(data).map((t: any) => ({
+      ...t,
+      createdAt: new Date(t.createdAt),
+      updatedAt: new Date(t.updatedAt)
+    })) : [];
+  },
+
+  saveTickets: (tickets: Ticket[]): void => {
+    localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(tickets));
   },
 
   // Clear all data

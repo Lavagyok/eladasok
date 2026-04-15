@@ -65,6 +65,43 @@ export interface Expense {
   notes?: string;
 }
 
+export type TicketStatus =
+  | 'új'
+  | 'folyamatban'
+  | 'diagnosztika'
+  | 'alkatrész rendelés'
+  | 'javítás'
+  | 'lezárva'
+  | 'visszautasítva';
+
+export type DeviceType =
+  | 'számítógép'
+  | 'nyomtató'
+  | 'telefon'
+  | 'tablet'
+  | 'konzol'
+  | 'egyéb';
+
+export interface Ticket {
+  id: string;
+  ticketNumber: string;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  deviceType: DeviceType;
+  deviceModel?: string;
+  deviceSerialNumber?: string;
+  problem: string;
+  status: TicketStatus;
+  priority: 'alacsony' | 'normál' | 'magas' | 'sürgős';
+  estimatedCost?: number;
+  finalCost?: number;
+  notes?: string;
+  assignedTo?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface SearchFilters {
   query: string;
   category: 'all' | 'products' | 'sales' | 'purchases' | 'expenses';
