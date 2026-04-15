@@ -82,6 +82,18 @@ export type DeviceType =
   | 'konzol'
   | 'egyéb';
 
+export interface TicketItem {
+  id: string;
+  type: 'product' | 'service' | 'custom';
+  productId?: string;
+  serviceId?: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  unit?: string;
+}
+
 export interface Ticket {
   id: string;
   ticketNumber: string;
@@ -94,6 +106,7 @@ export interface Ticket {
   problem: string;
   status: TicketStatus;
   priority: 'alacsony' | 'normál' | 'magas' | 'sürgős';
+  items: TicketItem[];
   estimatedCost?: number;
   finalCost?: number;
   notes?: string;

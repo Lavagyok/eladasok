@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Plus, CreditCard as Edit, Trash2, Wrench, AlertCircle, CheckCircle, Clock, ChevronDown, Phone, Mail, Hash, X } from 'lucide-react';
-import { Ticket, TicketStatus, DeviceType } from '../types';
+import { Plus, CreditCard as Edit, Trash2, Wrench, AlertCircle, CheckCircle, Clock, ChevronDown, Phone, Mail, Hash, X, Package, PackagePlus } from 'lucide-react';
+import { Ticket, TicketItem, TicketStatus, DeviceType, Product, Service } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import SearchBar from './SearchBar';
 
 interface TicketsProps {
   tickets: Ticket[];
+  products: Product[];
+  services: Service[];
   onAddTicket: (ticket: Omit<Ticket, 'id'>) => void;
   onUpdateTicket: (id: string, ticket: Partial<Ticket>) => void;
   onDeleteTicket: (id: string) => void;
@@ -61,8 +63,6 @@ const emptyForm = {
   problem: '',
   status: 'új' as TicketStatus,
   priority: 'normál' as Priority,
-  estimatedCost: '',
-  finalCost: '',
   notes: '',
   assignedTo: '',
 };
@@ -88,14 +88,17 @@ function formatHu(date: Date) {
   }).format(date);
 }
 
-const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket, onDeleteTicket }) => {
+const Tickets: React.FC<TicketsProps> = ({ tickets, products, services, onAddTicket, onUpdateTicket, onDeleteTicket }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [items, setItems] = useState<TicketItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<TicketStatus | 'összes'>('összes');
   const [filterPriority, setFilterPriority] = useState<Priority | 'összes'>('összes');
+  const [itemSearch, setItemSearch] = useState('');
+  const [showItemPicker, setShowItemPicker] = useState(false);
 
   const filtered = tickets.filter(t => {
     const q = searchQuery.toLowerCase();
@@ -111,6 +114,8 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
 
   const openCount = tickets.filter(t => t.status !== 'lezárva' && t.status !== 'visszautasítva').length;
 
+  const itemsTotal = items.reduce((sum, i) => sum + i.totalPrice, 0);
+
   const openForm = (ticket?: Ticket) => {
     if (ticket) {
       setEditingId(ticket.id);
@@ -124,15 +129,17 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
         problem: ticket.problem,
         status: ticket.status,
         priority: ticket.priority,
-        estimatedCost: ticket.estimatedCost?.toString() ?? '',
-        finalCost: ticket.finalCost?.toString() ?? '',
         notes: ticket.notes ?? '',
         assignedTo: ticket.assignedTo ?? '',
       });
+      setItems(ticket.items ?? []);
     } else {
       setEditingId(null);
       setForm(emptyForm);
+      setItems([]);
     }
+    setShowItemPicker(false);
+    setItemSearch('');
     setShowForm(true);
   };
 
@@ -140,6 +147,9 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
     setShowForm(false);
     setEditingId(null);
     setForm(emptyForm);
+    setItems([]);
+    setShowItemPicker(false);
+    setItemSearch('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -158,8 +168,9 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
       problem: form.problem,
       status: form.status,
       priority: form.priority,
-      estimatedCost: form.estimatedCost ? Number(form.estimatedCost) : undefined,
-      finalCost: form.finalCost ? Number(form.finalCost) : undefined,
+      items,
+      estimatedCost: itemsTotal > 0 ? itemsTotal : undefined,
+      finalCost: undefined,
       notes: form.notes || undefined,
       assignedTo: form.assignedTo || undefined,
       createdAt: editingId ? (tickets.find(t => t.id === editingId)?.createdAt ?? now) : now,
@@ -183,6 +194,95 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
 
   const field = (key: keyof typeof form, value: string) =>
     setForm(prev => ({ ...prev, [key]: value }));
+
+  const addProductItem = (product: Product) => {
+    const existing = items.find(i => i.productId === product.id);
+    if (existing) {
+      updateItemQty(existing.id, existing.quantity + 1);
+    } else {
+      const newItem: TicketItem = {
+        id: crypto.randomUUID(),
+        type: 'product',
+        productId: product.id,
+        name: product.name,
+        quantity: 1,
+        unitPrice: product.sellingPrice,
+        totalPrice: product.sellingPrice,
+        unit: product.unit,
+      };
+      setItems(prev => [...prev, newItem]);
+    }
+    setShowItemPicker(false);
+    setItemSearch('');
+  };
+
+  const addServiceItem = (service: Service) => {
+    const existing = items.find(i => i.serviceId === service.id);
+    if (existing) {
+      updateItemQty(existing.id, existing.quantity + 1);
+    } else {
+      const newItem: TicketItem = {
+        id: crypto.randomUUID(),
+        type: 'service',
+        serviceId: service.id,
+        name: service.name,
+        quantity: 1,
+        unitPrice: service.price,
+        totalPrice: service.price,
+        unit: service.unit,
+      };
+      setItems(prev => [...prev, newItem]);
+    }
+    setShowItemPicker(false);
+    setItemSearch('');
+  };
+
+  const addCustomItem = () => {
+    const newItem: TicketItem = {
+      id: crypto.randomUUID(),
+      type: 'custom',
+      name: '',
+      quantity: 1,
+      unitPrice: 0,
+      totalPrice: 0,
+      unit: 'db',
+    };
+    setItems(prev => [...prev, newItem]);
+  };
+
+  const updateItemQty = (id: string, qty: number) => {
+    if (qty < 1) return;
+    setItems(prev => prev.map(i => i.id === id
+      ? { ...i, quantity: qty, totalPrice: Math.round(i.unitPrice * qty) }
+      : i
+    ));
+  };
+
+  const updateItemField = (id: string, key: keyof TicketItem, value: string | number) => {
+    setItems(prev => prev.map(i => {
+      if (i.id !== id) return i;
+      const updated = { ...i, [key]: value };
+      if (key === 'unitPrice' || key === 'quantity') {
+        updated.totalPrice = Math.round(Number(updated.unitPrice) * Number(updated.quantity));
+      }
+      return updated;
+    }));
+  };
+
+  const removeItem = (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const filteredPickerItems = (() => {
+    const q = itemSearch.toLowerCase();
+    const prods = products
+      .filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
+      .map(p => ({ kind: 'product' as const, id: p.id, label: p.name, sub: p.category, price: p.sellingPrice, unit: p.unit, data: p }));
+    const svcs = services
+      .filter(s => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q))
+      .map(s => ({ kind: 'service' as const, id: s.id, label: s.name, sub: s.category, price: s.price, unit: s.unit, data: s }));
+    return [...prods, ...svcs];
+  })();
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -231,8 +331,8 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
 
       {/* Form modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 px-4 bg-black/60 overflow-y-auto">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-2xl shadow-2xl mb-10">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 px-4 bg-black/70 overflow-y-auto">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-3xl shadow-2xl mb-10">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
               <h2 className="text-lg font-semibold text-white">
                 {editingId ? 'Jegy szerkesztése' : 'Új javítási jegy'}
@@ -242,119 +342,246 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ügyfél adatai</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  required
-                  type="text"
-                  placeholder="Ügyfél neve *"
-                  value={form.customerName}
-                  onChange={e => field('customerName', e.target.value)}
-                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="tel"
-                  placeholder="Telefonszám"
-                  value={form.customerPhone}
-                  onChange={e => field('customerPhone', e.target.value)}
-                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="email"
-                  placeholder="E-mail cím"
-                  value={form.customerEmail}
-                  onChange={e => field('customerEmail', e.target.value)}
-                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
-                />
-              </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
 
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Eszköz adatai</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <select
-                  value={form.deviceType}
-                  onChange={e => field('deviceType', e.target.value)}
-                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  {DEVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Márka / modell"
-                  value={form.deviceModel}
-                  onChange={e => field('deviceModel', e.target.value)}
-                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="text"
-                  placeholder="Sorozatszám (opcionális)"
-                  value={form.deviceSerialNumber}
-                  onChange={e => field('deviceSerialNumber', e.target.value)}
-                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
-                />
-              </div>
-
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Hiba leírása</p>
-              <textarea
-                required
-                placeholder="Probléma részletes leírása *"
-                value={form.problem}
-                onChange={e => field('problem', e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-              />
-
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Jegy beállításai</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Státusz</label>
-                  <select
-                    value={form.status}
-                    onChange={e => field('status', e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Prioritás</label>
-                  <select
-                    value={form.priority}
-                    onChange={e => field('priority', e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Becsült költség (Ft)</label>
+              {/* Customer */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ügyfél adatai</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
-                    type="number"
-                    placeholder="0"
-                    value={form.estimatedCost}
-                    onChange={e => field('estimatedCost', e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                    type="text"
+                    placeholder="Ügyfél neve *"
+                    value={form.customerName}
+                    onChange={e => field('customerName', e.target.value)}
+                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Telefonszám"
+                    value={form.customerPhone}
+                    onChange={e => field('customerPhone', e.target.value)}
+                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <input
+                    type="email"
+                    placeholder="E-mail cím"
+                    value={form.customerEmail}
+                    onChange={e => field('customerEmail', e.target.value)}
+                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Végleges költség (Ft)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={form.finalCost}
-                    onChange={e => field('finalCost', e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Felelős (opcionális)</label>
+              </div>
+
+              {/* Device */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Eszköz adatai</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <select
+                    value={form.deviceType}
+                    onChange={e => field('deviceType', e.target.value)}
+                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {DEVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                   <input
                     type="text"
-                    placeholder="Technikus neve"
-                    value={form.assignedTo}
-                    onChange={e => field('assignedTo', e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Márka / modell"
+                    value={form.deviceModel}
+                    onChange={e => field('deviceModel', e.target.value)}
+                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
+                  <input
+                    type="text"
+                    placeholder="Sorozatszám (opcionális)"
+                    value={form.deviceSerialNumber}
+                    onChange={e => field('deviceSerialNumber', e.target.value)}
+                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
+                  />
+                </div>
+              </div>
+
+              {/* Problem */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Hiba leírása</p>
+                <textarea
+                  required
+                  placeholder="Probléma részletes leírása *"
+                  value={form.problem}
+                  onChange={e => field('problem', e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                />
+              </div>
+
+              {/* Items / cost */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Alkatrészek & Munkadíj</p>
+                  {itemsTotal > 0 && (
+                    <span className="text-sm font-bold text-green-400">Összesen: {formatCurrency(itemsTotal)}</span>
+                  )}
+                </div>
+
+                {/* Items list */}
+                {items.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {items.map(item => (
+                      <div key={item.id} className="flex items-center gap-2 bg-gray-700/50 border border-gray-600/50 rounded-lg px-3 py-2">
+                        <div className="flex-1 min-w-0">
+                          {item.type === 'custom' ? (
+                            <input
+                              type="text"
+                              placeholder="Tétel neve"
+                              value={item.name}
+                              onChange={e => updateItemField(item.id, 'name', e.target.value)}
+                              className="w-full bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none border-b border-gray-600 focus:border-green-500"
+                            />
+                          ) : (
+                            <span className="text-sm text-white truncate block">{item.name}</span>
+                          )}
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${item.type === 'product' ? 'bg-blue-900/40 text-blue-400' : item.type === 'service' ? 'bg-green-900/40 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
+                              {item.type === 'product' ? 'termék' : item.type === 'service' ? 'szolgáltatás' : 'egyéni'}
+                            </span>
+                            {item.type === 'custom' && (
+                              <input
+                                type="number"
+                                placeholder="Egységár"
+                                value={item.unitPrice || ''}
+                                onChange={e => updateItemField(item.id, 'unitPrice', Number(e.target.value))}
+                                className="w-24 bg-gray-700 border border-gray-600 rounded text-white text-xs px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-green-500"
+                              />
+                            )}
+                            {item.type !== 'custom' && (
+                              <span className="text-xs text-gray-500">{formatCurrency(item.unitPrice)} / {item.unit}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => updateItemQty(item.id, item.quantity - 1)}
+                            className="w-6 h-6 rounded bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center justify-center"
+                          >−</button>
+                          <span className="w-7 text-center text-white text-sm font-medium">{item.quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateItemQty(item.id, item.quantity + 1)}
+                            className="w-6 h-6 rounded bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center justify-center"
+                          >+</button>
+                        </div>
+                        <span className="text-sm font-semibold text-white w-20 text-right shrink-0">
+                          {formatCurrency(item.totalPrice)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          className="text-red-400 hover:text-red-300 p-1 shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Picker */}
+                {showItemPicker && (
+                  <div className="bg-gray-700 border border-gray-600 rounded-lg overflow-hidden mb-2">
+                    <div className="p-2 border-b border-gray-600">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Keresés a készletben és szolgáltatások között..."
+                        value={itemSearch}
+                        onChange={e => setItemSearch(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {filteredPickerItems.length === 0 && (
+                        <p className="text-center text-gray-500 text-sm py-4">Nincs találat</p>
+                      )}
+                      {filteredPickerItems.map(entry => (
+                        <button
+                          type="button"
+                          key={entry.id}
+                          onClick={() => entry.kind === 'product' ? addProductItem(entry.data as Product) : addServiceItem(entry.data as Service)}
+                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-600 text-left transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {entry.kind === 'product'
+                              ? <Package className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              : <Wrench className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                            }
+                            <div className="min-w-0">
+                              <p className="text-sm text-white truncate">{entry.label}</p>
+                              <p className="text-xs text-gray-400">{entry.sub}</p>
+                            </div>
+                          </div>
+                          <span className="text-sm text-gray-300 shrink-0 ml-3">{formatCurrency(entry.price)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add buttons */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowItemPicker(p => !p); setItemSearch(''); }}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-700/30 hover:bg-blue-700/50 border border-blue-600/40 text-blue-300 rounded-lg text-sm transition-colors"
+                  >
+                    <Package className="w-4 h-4" />
+                    Készletből / Szolgáltatás
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addCustomItem}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-300 rounded-lg text-sm transition-colors"
+                  >
+                    <PackagePlus className="w-4 h-4" />
+                    Egyéni tétel
+                  </button>
+                </div>
+              </div>
+
+              {/* Settings */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Jegy beállításai</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Státusz</label>
+                    <select
+                      value={form.status}
+                      onChange={e => field('status', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Prioritás</label>
+                    <select
+                      value={form.priority}
+                      onChange={e => field('priority', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Felelős (opcionális)</label>
+                    <input
+                      type="text"
+                      placeholder="Technikus neve"
+                      value={form.assignedTo}
+                      onChange={e => field('assignedTo', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -366,7 +593,7 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
               />
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-1">
                 <button
                   type="submit"
                   className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-medium transition-colors"
@@ -427,9 +654,9 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
 
           {filtered.map(ticket => {
             const expanded = expandedId === ticket.id;
+            const ticketTotal = (ticket.items ?? []).reduce((s, i) => s + i.totalPrice, 0);
             return (
               <div key={ticket.id} className="bg-gray-750 border border-gray-700 rounded-lg overflow-hidden hover:border-gray-600 transition-colors" style={{ backgroundColor: 'rgb(31, 41, 55)' }}>
-                {/* Main row */}
                 <div className="flex items-center gap-3 px-4 py-3">
                   <button
                     onClick={() => setExpandedId(expanded ? null : ticket.id)}
@@ -457,11 +684,9 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_STYLES[ticket.priority]}`}>
                         {ticket.priority}
                       </span>
-                      {ticket.finalCost != null ? (
-                        <span className="text-green-400 text-sm font-semibold">{formatCurrency(ticket.finalCost)}</span>
-                      ) : ticket.estimatedCost != null ? (
-                        <span className="text-yellow-400 text-sm">~{formatCurrency(ticket.estimatedCost)}</span>
-                      ) : null}
+                      {ticketTotal > 0 && (
+                        <span className="text-yellow-400 text-sm font-semibold">{formatCurrency(ticketTotal)}</span>
+                      )}
                     </div>
                   </div>
 
@@ -483,80 +708,91 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, onAddTicket, onUpdateTicket,
                   </div>
                 </div>
 
-                {/* Expanded detail */}
                 {expanded && (
-                  <div className="border-t border-gray-700 px-4 py-4 bg-gray-900/40 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Probléma leírása</p>
-                      <p className="text-gray-200">{ticket.problem}</p>
-                    </div>
-
-                    {(ticket.customerPhone || ticket.customerEmail) && (
+                  <div className="border-t border-gray-700 px-4 py-4 bg-gray-900/40 space-y-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Elérhetőség</p>
-                        {ticket.customerPhone && (
-                          <div className="flex items-center gap-1 text-gray-300">
-                            <Phone className="w-3.5 h-3.5 text-gray-500" />
-                            {ticket.customerPhone}
-                          </div>
-                        )}
-                        {ticket.customerEmail && (
-                          <div className="flex items-center gap-1 text-gray-300">
-                            <Mail className="w-3.5 h-3.5 text-gray-500" />
-                            {ticket.customerEmail}
-                          </div>
-                        )}
+                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Probléma leírása</p>
+                        <p className="text-gray-200">{ticket.problem}</p>
                       </div>
-                    )}
 
-                    {ticket.deviceSerialNumber && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Sorozatszám</p>
-                        <div className="flex items-center gap-1 text-gray-300">
-                          <Hash className="w-3.5 h-3.5 text-gray-500" />
-                          {ticket.deviceSerialNumber}
+                      {(ticket.customerPhone || ticket.customerEmail) && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Elérhetőség</p>
+                          {ticket.customerPhone && (
+                            <div className="flex items-center gap-1 text-gray-300">
+                              <Phone className="w-3.5 h-3.5 text-gray-500" />
+                              {ticket.customerPhone}
+                            </div>
+                          )}
+                          {ticket.customerEmail && (
+                            <div className="flex items-center gap-1 text-gray-300">
+                              <Mail className="w-3.5 h-3.5 text-gray-500" />
+                              {ticket.customerEmail}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {ticket.assignedTo && (
+                      {ticket.deviceSerialNumber && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Sorozatszám</p>
+                          <div className="flex items-center gap-1 text-gray-300">
+                            <Hash className="w-3.5 h-3.5 text-gray-500" />
+                            {ticket.deviceSerialNumber}
+                          </div>
+                        </div>
+                      )}
+
+                      {ticket.assignedTo && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Felelős</p>
+                          <p className="text-gray-300">{ticket.assignedTo}</p>
+                        </div>
+                      )}
+
                       <div>
-                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Felelős</p>
-                        <p className="text-gray-300">{ticket.assignedTo}</p>
+                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Létrehozva</p>
+                        <p className="text-gray-300">{formatHu(ticket.createdAt)}</p>
                       </div>
-                    )}
 
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Létrehozva</p>
-                      <p className="text-gray-300">{formatHu(ticket.createdAt)}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Frissítve</p>
-                      <p className="text-gray-300">{formatHu(ticket.updatedAt)}</p>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Frissítve</p>
+                        <p className="text-gray-300">{formatHu(ticket.updatedAt)}</p>
+                      </div>
                     </div>
 
                     {ticket.notes && (
-                      <div className="sm:col-span-2 lg:col-span-3">
+                      <div>
                         <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Megjegyzések</p>
                         <p className="text-gray-300">{ticket.notes}</p>
                       </div>
                     )}
 
-                    <div className="sm:col-span-2 lg:col-span-3 flex gap-3">
-                      {ticket.estimatedCost != null && (
-                        <div>
-                          <p className="text-xs text-gray-500">Becsült költség</p>
-                          <p className="text-yellow-400 font-semibold">{formatCurrency(ticket.estimatedCost)}</p>
+                    {(ticket.items ?? []).length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide">Alkatrészek & Munkadíj</p>
+                        <div className="space-y-1.5">
+                          {(ticket.items ?? []).map(item => (
+                            <div key={item.id} className="flex items-center justify-between bg-gray-800/60 rounded-lg px-3 py-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${item.type === 'product' ? 'bg-blue-900/40 text-blue-400' : item.type === 'service' ? 'bg-green-900/40 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
+                                  {item.type === 'product' ? 'termék' : item.type === 'service' ? 'svc' : 'egyéni'}
+                                </span>
+                                <span className="text-gray-200 truncate">{item.name}</span>
+                              </div>
+                              <div className="flex items-center gap-4 shrink-0 ml-3 text-sm">
+                                <span className="text-gray-400">{item.quantity} × {formatCurrency(item.unitPrice)}</span>
+                                <span className="font-semibold text-white">{formatCurrency(item.totalPrice)}</span>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="flex justify-end pt-1">
+                            <span className="text-sm font-bold text-yellow-400">Összesen: {formatCurrency(ticketTotal)}</span>
+                          </div>
                         </div>
-                      )}
-                      {ticket.finalCost != null && (
-                        <div>
-                          <p className="text-xs text-gray-500">Végleges költség</p>
-                          <p className="text-green-400 font-semibold">{formatCurrency(ticket.finalCost)}</p>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

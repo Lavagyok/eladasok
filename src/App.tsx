@@ -348,6 +348,8 @@ function App() {
           {activeTab === 'tickets' && (
             <Tickets
               tickets={tickets}
+              products={products}
+              services={services}
               onAddTicket={handleAddTicket}
               onUpdateTicket={handleUpdateTicket}
               onDeleteTicket={handleDeleteTicket}
