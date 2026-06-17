@@ -94,11 +94,17 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | n
     }
   } catch { /* fall through */ }
 
-  // 5. Open Food Facts — food/grocery only; skip Japanese manufacturer prefix (49 = electronics)
-  if (!/^49/.test(barcode)) {
+  // 5–7. Open* project APIs — unlimited, crowdsourced, cover food / general / beauty
+  const openApis = [
+    'https://world.openfoodfacts.org',
+    'https://world.openproductsfacts.org',
+    'https://world.openbeautyfacts.org',
+  ];
+
+  for (const base of openApis) {
     try {
       const res = await fetch(
-        `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`,
+        `${base}/api/v0/product/${encodeURIComponent(barcode)}.json`,
         { signal: AbortSignal.timeout(6000) }
       );
       if (res.ok) {
@@ -109,13 +115,16 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | n
             name: p.product_name,
             brand: p.brands?.split(',')[0]?.trim() || undefined,
             description: p.generic_name || undefined,
-            category: p.categories_tags?.[0]?.replace(/^[a-z]{2}:/, '') || p.categories?.split(',')[0]?.trim() || undefined,
+            category:
+              p.categories_tags?.[0]?.replace(/^[a-z]{2}:/, '') ||
+              p.categories?.split(',')[0]?.trim() ||
+              undefined,
           };
           writeCache(barcode, product);
           return product;
         }
       }
-    } catch { /* all APIs exhausted */ }
+    } catch { /* try next */ }
   }
 
   return null;
