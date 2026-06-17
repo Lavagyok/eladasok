@@ -88,6 +88,3 @@ export function useBarcodeScanner(
     };
   }, [enabled, onScan, clearBuffer]);
 }
-
-
-export { useBarcodeScanner }
