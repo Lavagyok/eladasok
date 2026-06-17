@@ -4,6 +4,24 @@ import { useEffect, useRef, useCallback } from 'react';
 const MAX_INTER_KEY_GAP_MS = 80;
 const MIN_BARCODE_LENGTH = 4;
 
+/**
+ * Some scanners are configured in Alt+Numpad mode: instead of sending '8' directly,
+ * they send Alt+0+5+6 (the ASCII decimal code for '8'). This produces strings like
+ * "056056057..." instead of "889...". Detect and decode this pattern.
+ */
+function decodeAltNumpadEncoding(raw: string): string {
+  if (raw.length === 0 || raw.length % 3 !== 0) return raw;
+  const chars: string[] = [];
+  for (let i = 0; i < raw.length; i += 3) {
+    const code = parseInt(raw.slice(i, i + 3), 10);
+    if (code < 32 || code > 127) return raw; // not valid printable ASCII — return as-is
+    chars.push(String.fromCharCode(code));
+  }
+  const decoded = chars.join('');
+  // Only accept decode if the result looks like a real barcode (alphanumeric)
+  return /^[A-Za-z0-9\-. $/+%]+$/.test(decoded) ? decoded : raw;
+}
+
 export function useBarcodeScanner(
   onScan: (barcode: string) => void,
   enabled = true
@@ -38,7 +56,8 @@ export function useBarcodeScanner(
       const now = Date.now();
 
       if (e.key === 'Enter') {
-        const barcode = bufferRef.current.join('');
+        const raw = bufferRef.current.join('');
+        const barcode = decodeAltNumpadEncoding(raw);
         if (barcode.length >= MIN_BARCODE_LENGTH) {
           onScan(barcode);
         }
@@ -69,3 +88,6 @@ export function useBarcodeScanner(
     };
   }, [enabled, onScan, clearBuffer]);
 }
+
+
+export { useBarcodeScanner }
