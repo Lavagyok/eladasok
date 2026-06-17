@@ -24,6 +24,7 @@ import SearchComponent from './components/Search';
 import Reports from './components/Reports';
 import StockAlerts from './components/StockAlerts';
 import Tickets from './components/Tickets';
+import BarcodeScanner from './components/BarcodeScanner';
 
 type ActiveTab = 'dashboard' | 'products' | 'sales' | 'expenses' | 'search' | 'reports' | 'tickets';
 
@@ -416,6 +417,12 @@ function App() {
           )}
         </div>
       </div>
+      <BarcodeScanner
+        products={products}
+        onAddProduct={handleAddProduct}
+        onUpdateProduct={handleUpdateProduct}
+        onNavigateToProducts={() => setActiveTab('products')}
+      />
     </div>
   );
 }

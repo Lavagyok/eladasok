@@ -8,6 +8,7 @@ export interface Product {
   minStock: number;
   unit: string;
   description?: string;
+  barcode?: string;
   createdAt: Date;
   updatedAt: Date;
 }

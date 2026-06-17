@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Package, AlertTriangle } from 'lucide-react';
+import { Plus, CreditCard as Edit, Trash2, Package, AlertTriangle, Barcode } from 'lucide-react';
 import { Product } from '../types';
 import { calculations } from '../utils/calculations';
 import { formatNumberInput, parseFormattedNumber, formatCurrency } from '../utils/formatters';
@@ -33,7 +33,8 @@ const Products: React.FC<ProductsProps> = ({
     currentStock: '',
     minStock: '',
     unit: '',
-    description: ''
+    description: '',
+    barcode: ''
   });
 
   const filteredAndSortedProducts = () => {
@@ -86,7 +87,8 @@ const Products: React.FC<ProductsProps> = ({
       currentStock: parseInt(formData.currentStock),
       minStock: parseInt(formData.minStock),
       unit: formData.unit,
-      description: formData.description
+      description: formData.description,
+      barcode: formData.barcode || undefined,
     };
 
     if (editingProduct) {
@@ -106,7 +108,8 @@ const Products: React.FC<ProductsProps> = ({
       currentStock: '',
       minStock: '',
       unit: '',
-      description: ''
+      description: '',
+      barcode: ''
     });
     setShowForm(false);
   };
@@ -123,7 +126,8 @@ const Products: React.FC<ProductsProps> = ({
       currentStock: product.currentStock.toString(),
       minStock: product.minStock.toString(),
       unit: product.unit,
-      description: product.description || ''
+      description: product.description || '',
+      barcode: product.barcode || ''
     });
     setShowForm(true);
   };
@@ -141,7 +145,8 @@ const Products: React.FC<ProductsProps> = ({
       currentStock: '',
       minStock: '',
       unit: '',
-      description: ''
+      description: '',
+      barcode: ''
     });
   };
 
@@ -290,6 +295,17 @@ const Products: React.FC<ProductsProps> = ({
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
                 />
+                <div className="relative">
+                  <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Vonalkód (szkenneld be vagy írd be)"
+                    value={formData.barcode}
+                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                    data-barcode-input="true"
+                    className="w-full pl-9 pr-3 py-2 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400 font-mono"
+                  />
+                </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button
@@ -346,7 +362,13 @@ const Products: React.FC<ProductsProps> = ({
                       <div>
                         <div className="text-sm font-medium text-white">{product.name}</div>
                         {product.description && (
-                          <div className="text-sm text-gray-400">{product.description}</div>
+                          <div className="text-xs text-gray-400">{product.description}</div>
+                        )}
+                        {product.barcode && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Barcode className="w-3 h-3 text-gray-500" />
+                            <span className="text-xs text-gray-500 font-mono">{product.barcode}</span>
+                          </div>
                         )}
                       </div>
                     </div>
