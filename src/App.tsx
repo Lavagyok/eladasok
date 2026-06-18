@@ -11,11 +11,13 @@ import {
   Trash2,
   FileText,
   Bell,
-  Wrench
+  Wrench,
+  BookOpen,
 } from 'lucide-react';
 import { Product, Sale, Purchase, Expense, Service, Ticket } from './types';
 import { storage } from './utils/storage';
 import { calculations } from './utils/calculations';
+import { getCustomBarcodeCount } from './utils/customBarcodes';
 import Dashboard from './components/Dashboard';
 import Products from './components/Products';
 import Sales from './components/Sales';
@@ -25,6 +27,7 @@ import Reports from './components/Reports';
 import StockAlerts from './components/StockAlerts';
 import Tickets from './components/Tickets';
 import BarcodeScanner from './components/BarcodeScanner';
+import BarcodeLibrary from './components/BarcodeLibrary';
 
 type ActiveTab = 'dashboard' | 'products' | 'sales' | 'expenses' | 'search' | 'reports' | 'tickets';
 
@@ -37,6 +40,8 @@ function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [showStockAlerts, setShowStockAlerts] = useState(true);
+  const [showBarcodeLibrary, setShowBarcodeLibrary] = useState(false);
+  const [barcodeCount, setBarcodeCount] = useState(() => getCustomBarcodeCount());
 
   useEffect(() => {
     setProducts(storage.getProducts());
@@ -333,6 +338,18 @@ function App() {
                 <Trash2 className="w-4 h-4 mr-2 text-red-400" />
                 Minden törlése
               </button>
+              <button
+                onClick={() => setShowBarcodeLibrary(true)}
+                className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-lg"
+              >
+                <div className="flex items-center">
+                  <BookOpen className="w-4 h-4 mr-2 text-gray-400" />
+                  Vonalkód könyvtár
+                </div>
+                {barcodeCount > 0 && (
+                  <span className="text-xs bg-gray-600 text-gray-300 px-1.5 py-0.5 rounded-full">{barcodeCount}</span>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -423,6 +440,14 @@ function App() {
         onUpdateProduct={handleUpdateProduct}
         onNavigateToProducts={() => setActiveTab('products')}
       />
+      {showBarcodeLibrary && (
+        <BarcodeLibrary
+          onClose={() => {
+            setShowBarcodeLibrary(false);
+            setBarcodeCount(getCustomBarcodeCount());
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { getCustomBarcode } from './customBarcodes';
+
 export interface BarcodeProduct {
   name: string;
   brand?: string;
@@ -13,20 +15,9 @@ const KNOWN_PRODUCTS: Record<string, BarcodeProduct> = {
 };
 
 const LS_CACHE_KEY = 'barcode_lookup_cache';
-const LS_APIKEY_KEY = 'upcitemdb_user_key';
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-export function getUserApiKey(): string {
-  return localStorage.getItem(LS_APIKEY_KEY) ?? '';
-}
-
-export function setUserApiKey(key: string): void {
-  if (key.trim()) {
-    localStorage.setItem(LS_APIKEY_KEY, key.trim());
-  } else {
-    localStorage.removeItem(LS_APIKEY_KEY);
-  }
-}
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
 
 function readCache(barcode: string): BarcodeProduct | null {
   try {
@@ -55,26 +46,70 @@ export function cacheProduct(barcode: string, product: BarcodeProduct): void {
   } catch { /* ignore quota errors */ }
 }
 
+async function lookupWithGemini(barcode: string): Promise<BarcodeProduct | null> {
+  if (!GEMINI_API_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are a product database. A user scanned a barcode and needs to know what product it is.
+
+Barcode: ${barcode}
+
+Respond with ONLY a JSON object (no markdown, no code blocks, no explanation):
+{"name": "full product name", "brand": "brand name", "category": "product category"}
+
+If you genuinely cannot identify this specific barcode, respond with exactly: {}`
+            }]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+            maxOutputTokens: 150,
+          },
+        }),
+        signal: AbortSignal.timeout(12000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return null;
+    const parsed = JSON.parse(text.trim());
+    if (!parsed?.name) return null;
+    return {
+      name: parsed.name,
+      brand: parsed.brand || undefined,
+      category: parsed.category || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | null> {
-  // 1. Hardcoded fallback for known problematic barcodes
+  // 1. Hardcoded — always correct for known problem barcodes
   if (KNOWN_PRODUCTS[barcode]) return KNOWN_PRODUCTS[barcode];
 
-  // 2. localStorage cache (persists per browser indefinitely)
+  // 2. Personal barcode library — saved from previous manual scans
+  const custom = getCustomBarcode(barcode);
+  if (custom) return custom;
+
+  // 3. localStorage API cache — instant after first successful lookup
   const cached = readCache(barcode);
   if (cached) return cached;
 
-  const userKey = getUserApiKey();
-
-  // 3. UPCitemdb — best for electronics, accessories, IT products
-  //    Uses user key (1000/day) if configured, otherwise trial (100/day shared)
+  // 4. UPCitemdb trial — 100 lookups/day, good for electronics & consumer goods
   try {
-    const url = userKey
-      ? `https://api.upcitemdb.com/prod/v1/lookup?upc=${encodeURIComponent(barcode)}`
-      : `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`;
-    const headers: HeadersInit = userKey
-      ? { 'user_key': userKey, 'key_type': '3scale' }
-      : {};
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(6000) });
+    const res = await fetch(
+      `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`,
+      { signal: AbortSignal.timeout(6000) }
+    );
     if (res.ok) {
       const data = await res.json();
       if (data.items?.length > 0 && data.items[0].title) {
@@ -92,7 +127,7 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | n
     }
   } catch { /* fall through */ }
 
-  // 4. barcode.monster — free, broad product coverage
+  // 5. barcode.monster — free, broad coverage
   try {
     const res = await fetch(
       `https://barcode.monster/api/${encodeURIComponent(barcode)}`,
@@ -113,7 +148,7 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | n
     }
   } catch { /* fall through */ }
 
-  // 5–7. Open* project APIs — unlimited, crowdsourced, cover food / general / beauty
+  // 6–8. Open* project APIs — unlimited, crowdsourced (food / general / beauty)
   const openApis = [
     'https://world.openfoodfacts.org',
     'https://world.openproductsfacts.org',
@@ -144,6 +179,13 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | n
         }
       }
     } catch { /* try next */ }
+  }
+
+  // 9. Gemini AI — last resort for specialty products not in any public database
+  const geminiResult = await lookupWithGemini(barcode);
+  if (geminiResult) {
+    cacheProduct(barcode, geminiResult);
+    return geminiResult;
   }
 
   return null;
